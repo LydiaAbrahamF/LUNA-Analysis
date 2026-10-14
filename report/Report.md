@@ -1,10 +1,10 @@
-# LUNA16 Pulmonary Nodule Analysis: EDA Progress Report
+# LUNA16 Pulmonary Nodule Analysis: Progress Report (EDA, split and preprocessing)
 
-**Status date:** 2026-10-13
+**Status date:** 2026-10-14
 **Project:** Pulmonary nodule malignancy classification (primary task) and nodule detection (secondary task) on the LUNA16 dataset
-**Progress:** Phase 0 (setup) partly done, Phase 1 (metadata EDA) mostly done, Phase 2 (image loading and geometry validation) done. Phase 3 (preprocessing) is next.
+**Progress:** Phase 1 (metadata EDA) mostly done, Phase 2 (image loading and geometry validation) done, patient-level split locked, Phase 3 (preprocessing) implemented and tested on synthetic data, with the real-data run pending. Phase 5 (baselines) is next.
 
-This document records what was done in the exploratory data analysis (EDA) so far, why each step was done, what it showed, and what decision followed. It is written so that each section can later be adapted into the "Dataset" and "Methods" sections of the final report.
+This document records what was done so far (exploratory data analysis, evaluation split and preprocessing), why each step was done, what it showed, and what decision followed. It is written so that each section can later be adapted into the "Dataset" and "Methods" sections of the final report.
 
 ---
 
@@ -238,7 +238,9 @@ assert is_malignant([2, 1, 1, 1]) == 0      # LIDC-IDRI-0004, nodule 1 (from the
 
 VOIs are about 30 mm wide in-plane but thin in z (median 6 slices, about 8 mm). The first VOI examined (53 x 64 x 11) was not typical.
 
-**Decision / open issue.** A fixed 3D cube (for example 32 mm) would require heavy z-padding for a typical VOI. Padding amount might correlate with nodule size and leak the answer. Planned check: correlate `mm_z` with diameter and compute AUC of `mm_z` alone (not yet run). Candidate designs: a 2.5D / thin-slab model, 3D with controlled padding and a size-cue ablation, or patches cut from full CTs once they are available.
+**Padding-leakage check (run).** The Spearman correlation between VOI depth `mm_z` and annotated diameter is **0.91**. In-plane width `mm_x` correlates 0.38 with diameter. Using a box dimension alone as a predictor of malignancy gives AUC **0.881** for `mm_z` (for comparison: diameter 0.918, scanner settings 0.566) and 0.62 for `mm_x`. The depth of a VOI is therefore almost a copy of the nodule size. VOI extent is a free shortcut: any pipeline that pads VOIs to a fixed size lets the amount of padding reveal the nodule size without the model looking at lung tissue. Size shown inside the image is legitimate information. Size encoded in the box extent or padding is an artefact that would not exist for new scans.
+
+**Decision.** Do not feed zero-padded, variable-depth volumes to the classifier, and do not feed the nodule mask as an input channel (the mask may be used only for centring and cropping). Candidate designs: (a) 2.5D input, meaning the central axial slice (plus neighbours where available) at a fixed physical in-plane window; (b) a 3D crop to a small fixed depth, after counting how many VOIs are shallower than that depth; (c) fixed-size patches cut from the full CT scans once they are available (best option, since it gives real surrounding tissue with no box artefact). Report the `mm_z`-only AUC (0.881) as an additional shortcut baseline. Confirmed cause: VOI depth follows the annotation bounding box in z (Spearman 0.94 between VOI depth and bounding-box depth), and the bounding-box depth tracks diameter (0.89). VOI width does not follow the bounding box (0.33), which is why width leaks much less (AUC 0.62).
 
 ### 3.9 Scanner-related confounding
 
@@ -301,6 +303,83 @@ Within size tertiles (AUC of diameter as a ranking score):
 
 **Decision.** Reframe RQ1: *does an image model add predictive value beyond nodule diameter?* Evaluate overall and within size groups.
 
+### 3.11 Label noise: how much does the consensus rule matter?
+
+**Goal.** Quantify how many labels depend on the choice of consensus rule, because labels are thresholded subjective ratings.
+
+**Method.** Compared the dataset rule (at least two raters above 3) with a majority vote (more than half of the raters above 3) and with a mean rating above 3, on the 994 nodules.
+
+**Result.**
+
+| Dataset rule (PDF) | Majority benign | Majority malignant | Mean benign | Mean malignant |
+|---|---|---|---|---|
+| benign (650) | 650 | 0 | 575 | 75 |
+| malignant (344) | **116** | 228 | 15 | 329 |
+
+Ratings per nodule and number of ratings above 3:
+
+| Raters | 0 high | 1 high | 2 high | 3 high | 4 high | 5 high | Nodules |
+|---|---|---|---|---|---|---|---|
+| 3 | 181 | 82 | 39 | 21 | | | 323 |
+| 4 | 229 | 158 | **116** | 118 | 45 | | 666 |
+| 5 | | | | | 2 | 1 | 3 |
+| 6 | | | | | | 1 | 1 |
+| 7 | | | | | | 1 | 1 |
+
+- All 116 nodules that change under majority vote are exact 2-2 ties among 4 raters (two raters above 3, two at or below 3). They are 34% of all malignant labels and 11.7% of all nodules.
+- The mean rule changes 90 nodules (9.1%): 75 benign to malignant and 15 malignant to benign.
+- The dataset rule is the most permissive of the three.
+
+**Decision.** Keep the dataset rule as the primary label, since it matches the dataset definition. Add a sensitivity analysis: evaluate on the majority and mean labels, and report results separately for "clear" nodules (all three rules agree) and "ambiguous" ones. Expect model errors to concentrate in the ambiguous group.
+
+### 3.12 Patient-level split (locked before modelling)
+
+**Goal.** Fix the evaluation protocol before any model is trained, so that the test set cannot influence design choices.
+
+**Method.** `StratifiedGroupKFold` with groups = patient and strata = label combined with slice-thickness group. One of six folds (about 16.7%) is the held-out test set, and the remainder is split into 5 cross-validation folds. Seed 42. Assertions check that no patient appears in both test and train/validation, and in both a validation fold and its training folds. Saved to `data/processed/splits.csv`.
+
+**Result.**
+
+| Split | Fold | Nodules | Malignant share | Patients |
+|---|---|---|---|---|
+| test | none | 166 | 0.35 | 91 |
+| trainval | 0 | 165 | 0.35 | 90 |
+| trainval | 1 | 166 | 0.34 | 94 |
+| trainval | 2 | 166 | 0.35 | 93 |
+| trainval | 3 | 165 | 0.35 | 92 |
+| trainval | 4 | 166 | 0.34 | 91 |
+
+Slice-thickness mix (thin / 1.25 mm / thick) is 0.34 / 0.28 / 0.39 in both the test and the train/validation portions.
+
+**Decision.** The test set stays sealed until the final evaluation. All tuning uses the 5 folds.
+
+### 3.13 Preprocessing design (Phase 3)
+
+**Goal.** Turn each nodule VOI into a fixed-size input for the classifier, without letting the way the dataset was built (box size, scanner resolution, file orientation) leak the answer.
+
+**Implementation.** `src/preprocess.py` (settings in a dataclass, saved as JSON next to the outputs), unit tests in `tests/test_preprocess.py`, visual QA in `02_preprocessing_qa`. Run with `python -m src.preprocess`. Outputs in `data/processed/`: `patches_v1_X.npy` (994 x 1 x 64 x 64), `patches_v1_mask.npy` (for QA only), `patches_v1_index.csv`, `patches_v1_config.json`.
+
+**Pipeline and rationale.**
+
+| Step | Choice (v1) | Rationale from the EDA |
+|---|---|---|
+| 1. Orientation | Reorient image and mask to RAS on load | 22 of 994 VOIs are stored as RAS, the rest as LPS (Section 3.7) |
+| 2. Centre | Centroid of the nodule mask, in physical coordinates | The mask outlines the nodule exactly. It is used only for centring and is never a model input, because it would reveal size |
+| 3. In-plane window | 32 x 32 mm sampled to 64 x 64 pixels (0.5 mm per pixel) | Largest annotated diameter is 32.3 mm. Native pixel size varies from 0.46 to 0.98 mm, so a common physical scale is needed |
+| 4. Slice | One axial slice at the nodule centre, linearly interpolated at an exact position in mm (optional extra slices at fixed mm offsets) | Slice thickness varies from 0.45 to 2.5 mm and VOI depth leaks nodule size (AUC 0.881), so no variable-depth 3D volume is used |
+| 5. Intensity | Clip to [-1000, 400] HU, scale to [0, 1] | HU values range from -1445 to 3071 (bone, saturation). A fixed window keeps lung and nodule detail and needs no dataset statistics |
+| 6. Outside the VOI | Fill with air (-1000 HU) and record the fraction as `pad_fraction` | VOIs are about 44 pixels wide, so many are narrower than 32 mm |
+
+The image is sampled directly from the original voxel grid in physical space (the file's affine maps voxels to millimetres), so pixel size, slice thickness and orientation are handled in one interpolation step. Resampling cannot add detail: thick-slice scans remain blurrier after interpolation.
+
+**Padding and shortcut audit.** The padded fraction is saved for every patch. The QA notebook tests whether it predicts the label (AUC), correlates with diameter, or differs by slice thickness. If it does, the padding strategy must change (edge replication, a smaller window, or excluding heavily padded VOIs).
+
+**Tests (8, all passing).** Same patch for LPS and RAS storage of the same data; nodule centred; the same object sampled at two pixel sizes gives the same patch; the patch does not change when the VOI is cropped shallower in z; padding is air and is counted; HU clipping and scaling; output shape, type and range; the multi-slice option contains the central slice.
+
+**Status.** Implemented and tested on a synthetic dataset that mimics the real data (mixed orientations, pixel sizes and slice thicknesses). The run on the real 994 VOIs and the QA notebook are pending.
+
+**Planned ablations (RQ2).** Window 32 vs 40 mm, one slice vs three slices (offsets -1, 0, +1 mm), upper HU limit 400 vs 600.
+
 ---
 
 ## 4. Key numbers at a glance
@@ -318,34 +397,42 @@ Within size tertiles (AUC of diameter as a ranking score):
 | Median VOI extent | 30 x 30 x 8 mm |
 | Diameter-only AUC (grouped CV) | 0.918 |
 | Scanner-only AUC (grouped CV) | 0.566 |
+| VOI-depth-only AUC | 0.881 (VOI width only: 0.62) |
+| Held-out test set | 166 nodules, 91 patients |
+| Preprocessing output (v1) | 994 patches of 1 x 64 x 64, 32 mm window at 0.5 mm per pixel |
 
 ---
 
-## 5. Decisions carried into preprocessing (Phase 3)
+## 5. Decisions from the EDA and how Phase 3 implements them
 
 | # | Finding | Decision |
 |---|---|---|
 | 1 | Mixed LPS / RAS orientation | Reorient images and masks identically on load |
 | 2 | Pixel size 0.46 to 0.98 mm, slice thickness 0.45 to 2.5 mm | Resample to a common spacing (test 1 mm isotropic and a coarser variant as an ablation) |
 | 3 | HU extremes (-1445 to 3071) | Clip to a fixed window, then scale to 0-1 (test the upper limit) |
-| 4 | VOIs thin in z and variable in size | Decide patch strategy after the padding-leakage check |
+| 4 | VOIs thin in z, variable in size, and their depth leaks nodule size (AUC 0.881) | Avoid padding to fixed volumes. Start with 2.5D input at a fixed in-plane window, keep 3D as an ablation, and move to full-CT patches when available |
 | 5 | Diameter is a strong predictor | Evaluate against the diameter baseline overall and per size group |
 | 6 | Thickness correlates with size | Stratify splits by label and thickness group; report per-group results |
 | 7 | Multiple nodules per patient | Split by patient (never by nodule), with an assertion that no patient appears in two splits |
 | 8 | 34.6% malignant | Class weights or balanced sampling; report AUC, AUPRC, sensitivity, specificity |
 | 9 | Coordinate convention verified | Reuse `(-x, -y, z)` with each file's affine for any patch extraction from full CTs |
+| 10 | 116 malignant labels (34%) are exact 2-2 rater ties; labels depend on the rule for about 9-12% of nodules | Keep the dataset rule as primary, add sensitivity analyses and a clear-vs-ambiguous breakdown |
+| 11 | Patient-level split locked (test 166 nodules, 5 folds) | Use only `splits.csv` for all training and evaluation; touch the test set once |
 
 ---
 
 ## 6. Limitations and threats to validity
 
 - **Labels are radiologist opinion, not pathology.** They come from subjective 1-5 ratings thresholded by a rule. Models learn to imitate this opinion, and larger nodules are rated more suspicious, which partly explains the strength of diameter.
-- **Rule sensitivity.** "At least two raters above 3" is a different bar for 3, 4 and 7 raters. Alternative labels are still to be compared.
+- **Rule sensitivity.** "At least two raters above 3" is a different bar for 3, 4 and 7 raters. 116 of the 344 malignant labels (34%) are exact 2-2 ties among 4 raters, and 90 nodules change under a mean-rating rule (Section 3.11).
 - **Few malignant nodules in the small group** (about 13), so conclusions inside that group are weak.
 - **Only 3 full CT scans** are available, which blocks the detection task and the extraction of patches with real surrounding tissue.
 - **Possible hospital or protocol effects** beyond slice thickness cannot be examined from the available metadata alone.
-- **VOI extents may carry size information** (padding concern), not yet tested.
+- **VOI extents carry size information.** VOI depth alone gives AUC 0.881 and correlates 0.91 with diameter, so zero-padding to a fixed volume must be avoided (Section 3.8).
 - **Single dataset**, no external validation.
+- **Single-slice 2D input** discards 3D context. 3D and multi-slice variants are planned as ablations.
+- **Padding frame.** Many VOIs are narrower than the 32 mm window, so patches contain an air-filled border. The padding audit on the real data decides whether this is acceptable.
+- **Preprocessing validated on synthetic data only** so far. The real-data run and QA are pending.
 
 ---
 
@@ -353,16 +440,17 @@ Within size tertiles (AUC of diameter as a ranking score):
 
 | Item | Purpose | Status |
 |---|---|---|
-| Label sensitivity (PDF rule vs. majority vs. mean rating), rating histogram | Quantify how many labels depend on the rule | Code written, output not yet reviewed |
+| Label sensitivity (PDF rule vs. majority vs. mean rating), rating histogram | Quantify how many labels depend on the rule | Done (Section 3.11); ambiguity-flag cell added, output pending |
 | Class balance and diameter-by-class figures | Report figures | Code written, figure not yet reviewed |
 | Resolve LIDC-IDRI-0332 owner of the VOI | Confirm which nodule the file belongs to | Final table has 994 unique rows, but the printed distances should be recorded in the log |
-| Padding-leakage check (`mm_z` vs. diameter, AUC of `mm_z`) | Choose patch strategy | Not run |
+| Padding-leakage check (`mm_z` vs. diameter, AUC of `mm_z`) | Choose patch strategy | Done (Section 3.8), link to the bounding box confirmed |
 | Distribution of other radiologist features (spiculation, margin, texture, and so on) and their relation to malignancy | Understand feature signal and annotator subjectivity | Not done |
 | Annotator disagreement per nodule (standard deviation of ratings) | Characterise label noise | Not done |
 | `AcqParams.xlsx` | Compare with header-derived spacing, check kVp and other settings | Not opened |
 | HU histograms and example images (benign vs. malignant, very bright, very faint) | Visual understanding for the report | Not done |
 | Save `data/processed/nodules.csv` and the image inventory | Reproducible inputs for later phases | Image inventory saved, nodules table saved by the finalising cell |
 | Obtain the full CT dataset | Needed for the detection task | Not done |
+| Run the unit tests, build the patches and run the QA notebook on the real data | Confirm that preprocessing works on the real files and that padding is not a shortcut | Code written, tested on synthetic data only |
 
 ---
 
@@ -377,8 +465,10 @@ Functions and checks to move from the notebook into `src/` with unit tests:
 | `load_canonical(path)` | Load an image or mask and reorient to a common orientation |
 | VOI-equals-CT-crop test | Regression test for the coordinate conversion (LIDC-IDRI-0001_R_1 at corner (292, 334, 85)) |
 | `describe_file(path, kind)` | Header inventory of every file |
+| `sample_patch(...)`, `preprocess_images(...)` | Orientation, centring, physical-space resampling, HU scaling and padding count for one nodule |
+| `build_dataset(cfg)` | Runs preprocessing for all nodules and saves the arrays, index and settings |
 
-Outputs written so far: `data/processed/image_inventory.csv`, `data/processed/nodules.csv`. Figures belong in `results/figures/eda/`.
+Outputs written so far: `data/processed/image_inventory.csv`, `data/processed/nodules.csv` (with `split` and `fold`), `data/processed/splits.csv`, and the `patches_v1_*` files once the build is run. Figures belong in `results/figures/eda/` and `results/figures/preprocessing/`. Tests run with `python -m pytest -q` from the repository root.
 
 Software used: Python, pandas, NumPy, nibabel, matplotlib, scikit-learn (logistic regression, grouped cross-validation, ROC AUC), SciPy (chi-square test). Pin exact versions in `environment.yml`.
 
@@ -386,7 +476,24 @@ Statistical notes: AUC values from cross-validation are pooled out-of-fold predi
 
 ---
 
-## 9. Appendix: log entries (copy to `LOG.md`)
+## 9. Roadmap and next steps
+
+| Phase | Content | Status |
+|---|---|---|
+| 0 | Repository, environment, related-work notes | Partly done (project folder exists; related-work notes and pinned environment still to do) |
+| 1 | Metadata EDA | Mostly done (figures, other radiologist features and `AcqParams.xlsx` pending) |
+| 2 | Image loading and geometry validation | Done |
+| 3 | Preprocessing | Implemented and tested on synthetic data; real-data QA pending |
+| 4 | Evaluation protocol and split | Split locked; metric code still to write |
+| 5 | Baselines | Diameter and scanner baselines done; radiomics and annotated-feature baselines to do |
+| 6 | CNN classifier | Not started |
+| 7 | Evaluation and error analysis | Not started |
+| 8 | Detection (secondary task) | Not started; needs the full CT scans |
+| 9 | Report and repository polish | In progress (this document) |
+
+---
+
+## 10. Appendix: log entries (copy to `LOG.md`)
 
 - 996 groups became 997 nodules after splitting LIDC-IDRI-0332 (two nodules under one ID, about 33 mm apart).
 - Classification set = 994 nodules with image and mask (650 benign, 344 malignant). Three malignant nodules excluded for lack of an image.
@@ -395,3 +502,8 @@ Statistical notes: AUC values from cross-validation are pooled out-of-fold predi
 - Slice thickness has 10 distinct values (0.45 to 2.5 mm), in-plane pixel size 0.46 to 0.98 mm. Resampling is required.
 - Thickness and malignancy are associated (29%, 33%, 40%; p = 0.0053), but the association disappears within nodule-size groups. Scanner-only AUC 0.566.
 - Diameter-only AUC 0.918, within-size-group AUC 0.73 to 0.78. The image model must be compared against this baseline.
+- VOI depth (`mm_z`) correlates 0.91 with diameter and alone gives AUC 0.881; in-plane width gives 0.62. Zero-padded fixed-size volumes would leak nodule size, so the patch design avoids them.
+- VOI depth follows the annotation bounding box in z (Spearman 0.94); VOI width does not (0.33).
+- 116 of 344 malignant labels are exact 2-2 rater ties (34%). The majority-vote rule would make 228 malignant, the mean-rating rule would change 90 nodules.
+- Split locked: test 166 nodules (91 patients), 5 folds of about 165 nodules, balanced by label (34-35% malignant) and thickness mix. Seed 42, saved in `data/processed/splits.csv`.
+- Preprocessing v1 implemented: orientation to RAS, centring on the mask centroid, 32 mm window at 0.5 mm per pixel (64 x 64), one central slice interpolated in mm, HU clipped to [-1000, 400] and scaled to [0, 1], air padding recorded as `pad_fraction`. 8 unit tests pass on synthetic data; real-data QA pending.
