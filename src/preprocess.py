@@ -39,7 +39,11 @@ class Patch:
 
 
 def find_root():
-    return next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "data").is_dir())
+    for p in [Path.cwd(), *Path.cwd().parents]:
+        data = p / "data"
+        if (data / "processed" / "nodules.csv").is_file() and (data / "VOIs" / "VOIs").is_dir():
+            return p
+    raise FileNotFoundError("Could not find project root containing data/processed/nodules.csv and data/VOIs/VOIs")
 
 
 def hu_to_unit(hu, cfg):
