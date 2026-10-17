@@ -6,9 +6,8 @@ Benign vs. malignant classification of lung nodules (primary task) and nodule de
 
 ## Research questions
 
-1. **RQ1:** Does an image model add predictive value beyond nodule diameter?
-2. **RQ2:** How much do preprocessing choices (resampling, HU window, patch size) change performance?
-3. **RQ3 (secondary):** Can candidate generation plus classification localise nodules at low false-positive rates?
+1. **RQ1:** How much do preprocessing choices (resampling, HU window, patch size) change performance?
+2. **RQ2 (secondary):** Can candidate generation plus classification localise nodules at low false-positive rates?
 
 ## Dataset
 
