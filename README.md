@@ -84,6 +84,23 @@ Outputs are written to `data/processed/`: the patch array, an index CSV, and the
 - Single-slice input discards 3D context. 3D and multi-slice variants are planned as ablations.
 - Preprocessing has been tested on synthetic data only. The real-data run and QA are pending.
 
+## Radiomics baseline (in progress)
+## Radiomics baseline (in progress)
+
+**Completed:** spacing audit for 994 VOIs; A/B feature extraction on three representative nodules using original spacing and 1 mm isotropic resampling. All six runs returned 107 radiomics features.
+
+The mask geometry check was rerun using PyRadiomics’ ROI-aligned resampling grid:
+
+| Nodule | Mask volume change |
+|---|---:|
+| LIDC-IDRI-0292_R_1 | −8.57% |
+| LIDC-IDRI-0470_R_2 | +1.12% |
+| LIDC-IDRI-0144_R_2 | +1.20% |
+
+These are preliminary results from three samples. They do not establish a final resampling protocol. The earlier mask-volume estimates used a separately calculated grid and have been superseded by this check.
+
+**Pending:** obtain and verify the shared patient-level `splits.csv` and `nodules.csv`. Classification, feature selection, and held-out evaluation will follow the shared split. No CT/VOI images or masks are stored in this repository.
+
 ## Roadmap
 
 | Phase | Content | Status |
