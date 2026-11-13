@@ -2,7 +2,7 @@
 
 Benign vs. malignant classification of lung nodules (primary task) and nodule detection (secondary task) on the LUNA16 dataset. The repository documents each step, the reasoning behind it, and the results, so the work can be reproduced.
 
-**Status (2026-10-14):** metadata EDA, image geometry validation, the patient-level split, and the preprocessing code are done. The real-data preprocessing run is pending, and no classifier has been trained yet.
+**Status (2026-11-13):** Metadata EDA, image geometry validation, and the patient-level split are complete. The initial Radiomics baseline has been evaluated; CNN work and detailed error analysis remain pending.
 
 ## Research questions
 
@@ -30,7 +30,7 @@ The data is not included in this repository (`data/` is in `.gitignore`).
 - **Heterogeneous images:** Orientation is mixed (972 LPS, 22 RAS), in-plane pixel size is 0.46 to 0.98 mm, and slice thickness takes 10 values from 0.45 to 2.5 mm. Resampling to a common physical scale is required.
 - **Shortcut risk:** VOI depth alone predicts malignancy with AUC 0.881, because it tracks the annotation bounding box and therefore nodule size. Zero-padded, variable-depth volumes would leak size, so the pipeline avoids them and never feeds the mask to the model.
 - **Scanner confounding:** Thicker slices are associated with more malignant nodules (29%, 33%, 40%; p = 0.0053), but the association disappears within nodule-size groups. Scanner settings alone give AUC 0.566.
-- **Diameter is a strong baseline:** Annotated diameter alone gives AUC 0.918 (grouped 5-fold CV), and 0.73 to 0.78 within size groups. An image model must beat this baseline, not chance.
+- **Diameter is a strong baseline:** Annotated diameter alone achieved an AUC of 0.918 in an earlier grouped five-fold CV. AUCs within individual size groups ranged from 0.73 to 0.78. The current locked-split Radiomics baseline is reported below. An image model should be compared against these baselines, not against chance alone.
 
 | Baseline | AUC |
 |---|---|
@@ -41,7 +41,7 @@ The data is not included in this repository (`data/` is in `.gitignore`).
 
 ## Evaluation split
 
-The split is locked before any modelling. `StratifiedGroupKFold` (seed 42) groups by patient and stratifies by label and slice-thickness group. One fold is held out as the test set (166 nodules, 91 patients), and the rest form 5 cross-validation folds. Assertions check that no patient appears in two splits. The test set is touched once, at the end. The split is saved in `data/processed/splits.csv`.
+The split is locked before any modelling. `StratifiedGroupKFold` (seed 42) groups by patient and stratifies by label and slice-thickness group. One fold is held out as the test set (166 nodules, 91 patients), and the rest form 5 cross-validation folds. Assertions check that no patient appears in two splits. The held-out test set was evaluated once under the pre-specified baseline plan and was not used for model or protocol selection. The split is saved in `data/processed/splits.csv`.
 
 ## Preprocessing (v1)
 
@@ -79,27 +79,25 @@ Outputs are written to `data/processed/`: the patch array, an index CSV, and the
 ## Limitations
 
 - Labels are radiologist opinion, not pathology, and larger nodules are rated more suspicious.
-- The small-nodule group has only about 13 malignant cases, so results in that group are uncertain. Bootstrap confidence intervals will be reported.
+- The small-nodule group has only about 13 malignant cases, so results in that group are uncertain. Patient-cluster bootstrap confidence intervals are reported for the test metrics.
 - Single dataset, no external validation.
 - Single-slice input discards 3D context. 3D and multi-slice variants are planned as ablations.
-- Preprocessing has been tested on synthetic data only. The real-data run and QA are pending.
+- The CNN preprocessing pipeline has been tested on synthetic data only; its real-data run and QA remain pending.
 
-## Radiomics baseline (in progress)
-## Radiomics baseline (in progress)
+## Radiomics baseline (initial results)
 
-**Completed:** spacing audit for 994 VOIs; A/B feature extraction on three representative nodules using original spacing and 1 mm isotropic resampling. All six runs returned 107 radiomics features.
+The confirmed target is `malignant`. Original-spacing and 1 mm isotropic features were extracted for 828 trainval and 166 test nodules, with 107 Radiomics features per nodule and protocol. The fixed baseline comparison used five-fold trainval validation and one final test evaluation.
 
-The mask geometry check was rerun using PyRadiomics’ ROI-aligned resampling grid:
+| Protocol | Input | Trainval OOF ROC-AUC | Test ROC-AUC (95% patient-bootstrap CI) |
+|---|---|---:|---:|
+| Original spacing | Diameter | 0.913 | 0.961 (0.927–0.988) |
+| Original spacing | Radiomics | 0.927 | 0.929 (0.892–0.964) |
+| Original spacing | Diameter + Radiomics | 0.927 | 0.930 (0.893–0.965) |
+| 1 mm isotropic | Diameter | 0.913 | 0.961 (0.927–0.988) |
+| 1 mm isotropic | Radiomics | 0.924 | 0.937 (0.892–0.975) |
+| 1 mm isotropic | Diameter + Radiomics | 0.924 | 0.937 (0.892–0.975) |
 
-| Nodule | Mask volume change |
-|---|---:|
-| LIDC-IDRI-0292_R_1 | −8.57% |
-| LIDC-IDRI-0470_R_2 | +1.12% |
-| LIDC-IDRI-0144_R_2 | +1.20% |
-
-These are preliminary results from three samples. They do not establish a final resampling protocol. The earlier mask-volume estimates used a separately calculated grid and have been superseded by this check.
-
-**Pending:** obtain and verify the shared patient-level `splits.csv` and `nodules.csv`. Classification, feature selection, and held-out evaluation will follow the shared split. No CT/VOI images or masks are stored in this repository.
+The test confidence intervals overlap. These initial results do not establish a clear Radiomics gain or a preferred resampling protocol. No test results were used to tune or select a model. Per-nodule feature tables and test predictions are kept locally.
 
 ## Roadmap
 
@@ -107,11 +105,11 @@ These are preliminary results from three samples. They do not establish a final 
 |---|---|---|
 | 1 | Metadata EDA | Mostly done |
 | 2 | Image loading and geometry validation | Done |
-| 3 | Preprocessing | Implemented, real-data QA pending |
-| 4 | Evaluation protocol and split | Split locked, metric code to write |
-| 5 | Baselines (diameter, scanner) | Done; radiomics baselines to do |
+| 3 | Preprocessing | Implemented; CNN real-data QA pending |
+| 4 | Evaluation protocol and split | Shared patient-level split verified; initial baseline evaluation complete |
+| 5 | Baselines (diameter, scanner, Radiomics) | Initial Radiomics comparison complete; feature-selection analysis pending |
 | 6 | CNN classifier | Not started |
-| 7 | Evaluation and error analysis | Not started |
+| 7 | Evaluation and error analysis | Initial baseline metrics complete; detailed error analysis pending |
 | 8 | Detection (needs full CT scans) | Not started |
 
 ## Data and acknowledgements
