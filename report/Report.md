@@ -1,10 +1,10 @@
-# LUNA16 Pulmonary Nodule Analysis: Progress Report (EDA, split and preprocessing)
+# LUNA16 Pulmonary Nodule Analysis: Progress Report 
 
-**Status date:** 2026-10-14
-**Project:** Pulmonary nodule malignancy classification (primary task) and nodule detection (secondary task) on the LUNA16 dataset
-**Progress:** Phase 1 (metadata EDA) mostly done, Phase 2 (image loading and geometry validation) done, patient-level split locked, Phase 3 (preprocessing) implemented and tested on synthetic data, with the real-data run pending. Phase 5 (baselines) is next.
+Status date: 2026-11-14
+Project: Pulmonary nodule malignancy classification (primary task) and nodule detection (secondary task) on the LUNA16 dataset
+Progress: Metadata EDA, image geometry validation, and the shared patient-level split are complete. Radiomics features were extracted for the 994-nodule classification set, and the initial locked-split baseline evaluation is complete. A trainval-only feature-ranking stability screen is also complete. CNN real-data preprocessing QA, CNN modelling, detailed error analysis, and detection remain pending.
 
-This document records what was done so far (exploratory data analysis, evaluation split and preprocessing), why each step was done, what it showed, and what decision followed. It is written so that each section can later be adapted into the "Dataset" and "Methods" sections of the final report.
+This report records the EDA, evaluation split, preprocessing design, Radiomics baseline, and feature-ranking stability screen. It documents the methods, findings, limitations, and remaining work.
 
 ---
 
@@ -95,7 +95,7 @@ assert is_malignant([2, 1, 1, 1]) == 0      # LIDC-IDRI-0004, nodule 1 (from the
 
 **Result.** Both unit tests pass. The first grouping gave 996 nodules (650 benign, 346 malignant), which was later corrected (Section 3.3).
 
-**Decision.** Keep the dataset authors' rule as the primary label. Plan a sensitivity analysis with alternative rules (majority vote, mean rating above 3), because "at least two" has a different meaning for 3, 4, or 7 raters. The sensitivity cell is written but its output has not been reviewed yet (Section 7).
+**Decision.** Keep the dataset authors' rule as the primary label. Plan a sensitivity analysis with alternative rules (majority vote, mean rating above 3), because "at least two" has a different meaning for 3, 4, or 7 raters. The label-rule comparison is summarised in Section 3.11; model-level sensitivity analysis remains future work.
 
 ### 3.3 Anomalous nodules and the nodule table fix
 
@@ -296,9 +296,9 @@ Within size tertiles (AUC of diameter as a ranking score):
 | large | 331 | 8.7 to 32.3 mm | 80% | 0.767 |
 
 **Interpretation.**
-- Annotated diameter alone gives AUC 0.918, and scanner settings add 0.004. A CNN's overall AUC must be compared with this, not with 0.5.
-- Diameter remains informative inside size groups (0.73 to 0.78), so an image model has room to improve in each group (roughly 0.22 to 0.27 AUC).
-- The small group has about 13 malignant nodules, so its AUC is highly uncertain. Bootstrap confidence intervals will be reported.
+- In an earlier patient-grouped five-fold CV, annotated diameter alone achieved an AUC of 0.918; adding scanner settings gave 0.922. The current locked-split baseline reports a trainval OOF AUC of 0.913 for diameter, using a different evaluation setup.
+- Raw diameter achieved AUCs from 0.73 to 0.78 within the three size groups. These are within-group ranking results, not separate fitted models.
+- The small size group has only about 13 malignant nodules, so its within-group AUC is uncertain. An image model should be compared with the diameter and Radiomics baselines, not with chance alone.
 - The diameter used here is a radiologist-derived measurement. A CNN can estimate size from the image, so it may learn size first.
 
 **Decision.** Reframe RQ1: *does an image model add predictive value beyond nodule diameter?* Evaluate overall and within size groups.
@@ -330,7 +330,7 @@ Ratings per nodule and number of ratings above 3:
 - The mean rule changes 90 nodules (9.1%): 75 benign to malignant and 15 malignant to benign.
 - The dataset rule is the most permissive of the three.
 
-**Decision.** Keep the dataset rule as the primary label, since it matches the dataset definition. Add a sensitivity analysis: evaluate on the majority and mean labels, and report results separately for "clear" nodules (all three rules agree) and "ambiguous" ones. Expect model errors to concentrate in the ambiguous group.
+**Decision.** Keep the dataset rule as the primary label, since it matches the dataset definition. The label-rule comparison here quantifies how many labels change under alternative rules. Retraining and evaluating models with alternative labels, and comparing performance on clear versus ambiguous nodules, remain future analyses. Whether model errors concentrate in ambiguous nodules has not yet been evaluated.
 
 ### 3.12 Patient-level split (locked before modelling)
 
@@ -351,13 +351,13 @@ Ratings per nodule and number of ratings above 3:
 
 Slice-thickness mix (thin / 1.25 mm / thick) is 0.34 / 0.28 / 0.39 in both the test and the train/validation portions.
 
-**Decision.** The test set stays sealed until the final evaluation. All tuning uses the 5 folds.
+**Decision.** The shared split was fixed before modelling. The pre-specified baseline evaluation used the test set once; test results must not be used for further model, feature, or protocol selection. Any future tuning must use the five trainval folds only.
 
 ### 3.13 Preprocessing design (Phase 3)
 
 **Goal.** Turn each nodule VOI into a fixed-size input for the classifier, without letting the way the dataset was built (box size, scanner resolution, file orientation) leak the answer.
 
-**Implementation.** `src/preprocess.py` (settings in a dataclass, saved as JSON next to the outputs), unit tests in `tests/test_preprocess.py`, visual QA in `02_preprocessing_qa`. Run with `python -m src.preprocess`. Outputs in `data/processed/`: `patches_v1_X.npy` (994 x 1 x 64 x 64), `patches_v1_mask.npy` (for QA only), `patches_v1_index.csv`, `patches_v1_config.json`.
+**Implementation.** `src/preprocess.py` defines the preprocessing settings and dataset builder; unit tests are in `tests/test_preprocess.py`, and visual QA is in `02_preprocessing_qa`. The pipeline has been tested on synthetic data. When run on the real VOIs, it will write `patches_v1_X.npy`, `patches_v1_mask.npy` (for QA only), `patches_v1_index.csv`, and `patches_v1_config.json` to `data/processed/`. The real-data run has not yet been completed.
 
 **Pipeline and rationale.**
 
@@ -380,6 +380,24 @@ The image is sampled directly from the original voxel grid in physical space (th
 
 **Planned ablations (RQ2).** Window 32 vs 40 mm, one slice vs three slices (offsets -1, 0, +1 mm), upper HU limit 400 vs 600.
 
+### 3.14 Radiomics baseline and feature-ranking stability screen
+
+**Radiomics extraction.** The confirmed target was `malignant`. Original-spacing and 1 mm isotropic features were extracted for all 994 nodules: 828 trainval nodules and 166 test nodules. Each nodule had 107 Radiomics features per protocol. The extracted tables had no extraction failures or non-finite feature values.
+
+**Baseline evaluation.** The pre-specified comparison used five-fold out-of-fold predictions within trainval and evaluated the held-out test set once. Each model used L2 logistic regression (`C=1.0`), with median imputation and standardisation fitted within each training fold. No feature selection or hyperparameter tuning was performed.
+
+| Protocol | Input | Trainval OOF ROC-AUC | Test ROC-AUC (95% patient-bootstrap CI) |
+|---|---|---:|---:|
+| Original spacing | Diameter | 0.913 | 0.961 (0.927–0.988) |
+| Original spacing | Radiomics | 0.927 | 0.929 (0.892–0.964) |
+| Original spacing | Diameter + Radiomics | 0.927 | 0.930 (0.893–0.965) |
+| 1 mm isotropic | Diameter | 0.913 | 0.961 (0.927–0.988) |
+| 1 mm isotropic | Radiomics | 0.924 | 0.937 (0.892–0.975) |
+| 1 mm isotropic | Diameter + Radiomics | 0.924 | 0.937 (0.892–0.975) |
+
+The test confidence intervals overlap. These initial results do not establish a clear Radiomics gain or a preferred resampling protocol. Test results were not used to tune or select a model or protocol.
+
+**Feature-ranking stability screen.** A univariate ANOVA F-score ranking was run separately for each protocol and each trainval fold. Each ranking used only the other four trainval folds. Nine features appeared in the top 10 in all five folds for both protocols; most were shape or size-related. This is a descriptive stability screen only: no feature subset was selected or evaluated as a model, and the test set was not used.
 ---
 
 ## 4. Key numbers at a glance
@@ -399,7 +417,13 @@ The image is sampled directly from the original voxel grid in physical space (th
 | Scanner-only AUC (grouped CV) | 0.566 |
 | VOI-depth-only AUC | 0.881 (VOI width only: 0.62) |
 | Held-out test set | 166 nodules, 91 patients |
-| Preprocessing output (v1) | 994 patches of 1 x 64 x 64, 32 mm window at 0.5 mm per pixel |
+| Shared trainval set | 828 nodules, 460 patients |
+| Trainval folds | 5 patient-level folds, 165–166 nodules per fold |
+| Confirmed classification target | `malignant` |
+| Radiomics extraction | 994 nodules under each of 2 protocols; 107 features per nodule; no failures or non-finite values |
+| Initial Radiomics baseline | 6 pre-specified model/protocol comparisons; five-fold trainval OOF plus one test evaluation |
+| Feature-ranking stability screen | 9 features appeared in the top 10 in all five folds under both protocols; descriptive only |
+| Preprocessing v1 status | Implemented and tested on synthetic data; real-data run and QA pending |
 
 ---
 
@@ -411,13 +435,14 @@ The image is sampled directly from the original voxel grid in physical space (th
 | 2 | Pixel size 0.46 to 0.98 mm, slice thickness 0.45 to 2.5 mm | Resample to a common spacing (test 1 mm isotropic and a coarser variant as an ablation) |
 | 3 | HU extremes (-1445 to 3071) | Clip to a fixed window, then scale to 0-1 (test the upper limit) |
 | 4 | VOIs thin in z, variable in size, and their depth leaks nodule size (AUC 0.881) | Avoid padding to fixed volumes. Start with 2.5D input at a fixed in-plane window, keep 3D as an ablation, and move to full-CT patches when available |
-| 5 | Diameter is a strong predictor | Evaluate against the diameter baseline overall and per size group |
+| 5 | Diameter is a strong predictor; the initial locked-split baseline is complete | Compare image and Radiomics models against the diameter baseline. The earlier grouped-CV diameter AUC (0.918) and current locked-split trainval OOF AUC (0.913) come from different evaluation setups. Do not use test results to choose a model |
 | 6 | Thickness correlates with size | Stratify splits by label and thickness group; report per-group results |
 | 7 | Multiple nodules per patient | Split by patient (never by nodule), with an assertion that no patient appears in two splits |
-| 8 | 34.6% malignant | Class weights or balanced sampling; report AUC, AUPRC, sensitivity, specificity |
+| 8 | 34.6% malignant | Report ROC-AUC and average precision; any class weighting or resampling must be decided using training data only |
 | 9 | Coordinate convention verified | Reuse `(-x, -y, z)` with each file's affine for any patch extraction from full CTs |
 | 10 | 116 malignant labels (34%) are exact 2-2 rater ties; labels depend on the rule for about 9-12% of nodules | Keep the dataset rule as primary, add sensitivity analyses and a clear-vs-ambiguous breakdown |
-| 11 | Patient-level split locked (test 166 nodules, 5 folds) | Use only `splits.csv` for all training and evaluation; touch the test set once |
+| 11 | Patient-level split locked (test: 166 nodules from 91 patients; five trainval folds) | Use the shared split. The pre-specified baseline test comparison has been run once; keep the test set out of future tuning |
+| 12 | Most consistently top-ranked Radiomics features are shape- or size-related | Treat the trainval-only ranking as descriptive. Do not call it a selected feature set or evidence of added value beyond diameter |
 
 ---
 
@@ -426,6 +451,8 @@ The image is sampled directly from the original voxel grid in physical space (th
 - **Labels are radiologist opinion, not pathology.** They come from subjective 1-5 ratings thresholded by a rule. Models learn to imitate this opinion, and larger nodules are rated more suspicious, which partly explains the strength of diameter.
 - **Rule sensitivity.** "At least two raters above 3" is a different bar for 3, 4 and 7 raters. 116 of the 344 malignant labels (34%) are exact 2-2 ties among 4 raters, and 90 nodules change under a mean-rating rule (Section 3.11).
 - **Few malignant nodules in the small group** (about 13), so conclusions inside that group are weak.
+- **Small held-out test set.** The initial Radiomics test comparison contains 166 nodules from 91 patients. Patient-bootstrap confidence intervals overlap, so these results do not establish a reliable performance difference between diameter and Radiomics or between resampling protocols.
+- **Feature screen is exploratory.** The trainval-only univariate ranking is not a validated feature-selection procedure. Many consistently high-ranked features describe shape or size, and no selected-feature model has been evaluated.
 - **Only 3 full CT scans** are available, which blocks the detection task and the extraction of patches with real surrounding tissue.
 - **Possible hospital or protocol effects** beyond slice thickness cannot be examined from the available metadata alone.
 - **VOI extents carry size information.** VOI depth alone gives AUC 0.881 and correlates 0.91 with diameter, so zero-padding to a fixed volume must be avoided (Section 3.8).
@@ -436,60 +463,61 @@ The image is sampled directly from the original voxel grid in physical space (th
 
 ---
 
-## 7. Remaining EDA work
+## 7. Remaining EDA and project work
 
 | Item | Purpose | Status |
 |---|---|---|
-| Label sensitivity (PDF rule vs. majority vs. mean rating), rating histogram | Quantify how many labels depend on the rule | Done (Section 3.11); ambiguity-flag cell added, output pending |
-| Class balance and diameter-by-class figures | Report figures | Code written, figure not yet reviewed |
-| Resolve LIDC-IDRI-0332 owner of the VOI | Confirm which nodule the file belongs to | Final table has 994 unique rows, but the printed distances should be recorded in the log |
-| Padding-leakage check (`mm_z` vs. diameter, AUC of `mm_z`) | Choose patch strategy | Done (Section 3.8), link to the bounding box confirmed |
-| Distribution of other radiologist features (spiculation, margin, texture, and so on) and their relation to malignancy | Understand feature signal and annotator subjectivity | Not done |
-| Annotator disagreement per nodule (standard deviation of ratings) | Characterise label noise | Not done |
-| `AcqParams.xlsx` | Compare with header-derived spacing, check kVp and other settings | Not opened |
-| HU histograms and example images (benign vs. malignant, very bright, very faint) | Visual understanding for the report | Not done |
-| Save `data/processed/nodules.csv` and the image inventory | Reproducible inputs for later phases | Image inventory saved, nodules table saved by the finalising cell |
-| Obtain the full CT dataset | Needed for the detection task | Not done |
-| Run the unit tests, build the patches and run the QA notebook on the real data | Confirm that preprocessing works on the real files and that padding is not a shortcut | Code written, tested on synthetic data only |
+| Label sensitivity and rating ambiguity | Quantify how labels depend on the consensus rule | Completed; see Section 3.11 |
+| Class-balance and diameter-by-class figures | Prepare figures for the report | Code written; figures still need review |
+| LIDC-IDRI-0332 VOI assignment | Ensure the correct nodule owns the shared VOI filename | Resolved for the final 994-nodule table; record the distance check in the audit log if needed |
+| Padding-leakage check | Check whether VOI depth tracks nodule size | Completed; see Section 3.8 |
+| Other radiologist features and their relation to malignancy | Describe feature signal and annotator subjectivity | Not done |
+| Annotator disagreement per nodule | Characterise label noise | Not done |
+| `AcqParams.xlsx` | Compare acquisition settings with header-derived spacing | Not opened |
+| HU histograms and example images | Visually compare benign, malignant, bright, and faint nodules | Not done |
+| Save processed metadata and image inventory | Keep reproducible input tables | Completed locally; raw data and patient-level files are not for GitHub upload |
+| Obtain the full CT dataset | Enable the detection task | Not done; only 3 full CT scans are available locally |
+| Run preprocessing on real VOIs and review QA | Confirm the CNN preprocessing and padding behaviour on real data | Pending; current validation is on synthetic data |
+| Compare selected-feature models | Check whether fold-local feature selection helps within trainval | Not done; define the procedure using trainval only and keep test results out of selection |
 
 ---
 
 ## 8. Reproducibility notes
 
-Functions and checks to move from the notebook into `src/` with unit tests:
+The shared patient-level split is stored in `data/processed/splits.csv`. It has five trainval folds (0–4) and a held-out test split (fold -1); no patient appears in both trainval and test. Use this shared file for all model development and evaluation. Do not regenerate the split for comparisons.
 
-| Function / check | Purpose |
+| Script | Purpose |
 |---|---|
-| `is_malignant(ratings)` | Label rule, tested on the two examples in the dataset description |
-| `offset_vox(voi, x, y, z)` | Convert annotation coordinates to voxels using `(-x, -y, z)` and the inverse affine, expressed relative to the VOI centre |
-| `load_canonical(path)` | Load an image or mask and reorient to a common orientation |
-| VOI-equals-CT-crop test | Regression test for the coordinate conversion (LIDC-IDRI-0001_R_1 at corner (292, 334, 85)) |
-| `describe_file(path, kind)` | Header inventory of every file |
-| `sample_patch(...)`, `preprocess_images(...)` | Orientation, centring, physical-space resampling, HU scaling and padding count for one nodule |
-| `build_dataset(cfg)` | Runs preprocessing for all nodules and saves the arrays, index and settings |
+| `src/preprocess.py` | Build fixed-size CNN inputs from VOIs |
+| `src/extract_radiomics_split.py` | Validate the shared metadata and extract Radiomics features for a requested split |
+| `src/evaluate_baselines.py` | Run the pre-specified diameter and Radiomics baseline comparisons |
+| `src/analyze_resampling_trainval.py` | Summarise feature changes between extraction protocols using trainval data |
+| `src/analyze_feature_stability_trainval.py` | Rank feature stability using trainval folds only; this is descriptive, not model selection |
+| `src/check_mask_resampling.py` | Compare mask geometry using PyRadiomics-aligned resampling |
 
-Outputs written so far: `data/processed/image_inventory.csv`, `data/processed/nodules.csv` (with `split` and `fold`), `data/processed/splits.csv`, and the `patches_v1_*` files once the build is run. Figures belong in `results/figures/eda/` and `results/figures/preprocessing/`. Tests run with `python -m pytest -q` from the repository root.
+The baseline used L2 logistic regression (`C=1.0`) with median imputation and standardisation fitted within each training fold. The shared five trainval folds produced out-of-fold predictions. The held-out test set was evaluated once under the pre-specified plan and was not used to tune or select models or protocols.
 
-Software used: Python, pandas, NumPy, nibabel, matplotlib, scikit-learn (logistic regression, grouped cross-validation, ROC AUC), SciPy (chi-square test). Pin exact versions in `environment.yml`.
+The feature-ranking stability screen uses only the other four trainval folds to rank features for each fold. It does not read the test set or evaluate a selected-feature model.
 
-Statistical notes: AUC values from cross-validation are pooled out-of-fold predictions with folds grouped by patient. The within-size-group AUCs use raw diameter as a ranking score (no model fitting). No random seed has been fixed yet for any split; this will be done in Phase 4.
+Key environment versions for the Radiomics run: Python 3.11.18, PyRadiomics 3.0.1, SimpleITK 2.5.7, and scikit-learn 1.9.1. Install the repository dependencies with `pip install -r requirements.txt`.
 
+Per-nodule feature tables, test predictions, raw VOIs, and masks remain local and should not be uploaded to GitHub. Only scripts, documentation, and aggregate results belong in the repository.
 ---
 
 ## 9. Roadmap and next steps
 
 | Phase | Content | Status |
 |---|---|---|
-| 0 | Repository, environment, related-work notes | Partly done (project folder exists; related-work notes and pinned environment still to do) |
-| 1 | Metadata EDA | Mostly done (figures, other radiologist features and `AcqParams.xlsx` pending) |
+| 0 | Repository, environment, related-work notes | Repository and environment are set up; related-work review remains pending |
+| 1 | Metadata EDA | Core EDA complete; remaining items are listed in Section 7 |
 | 2 | Image loading and geometry validation | Done |
 | 3 | Preprocessing | Implemented and tested on synthetic data; real-data QA pending |
-| 4 | Evaluation protocol and split | Split locked; metric code still to write |
-| 5 | Baselines | Diameter and scanner baselines done; radiomics and annotated-feature baselines to do |
-| 6 | CNN classifier | Not started |
-| 7 | Evaluation and error analysis | Not started |
+| 4 | Evaluation protocol and split | Shared patient-level split verified; initial baseline evaluation complete, with the test set used once |
+| 5 | Baselines | Initial diameter, scanner, and Radiomics comparisons complete; selected-feature model comparison pending |
+| 6 | CNN classifier | Not started; real-data preprocessing QA remains pending |
+| 7 | Evaluation and error analysis | Initial baseline metrics complete; detailed error analysis pending |
 | 8 | Detection (secondary task) | Not started; needs the full CT scans |
-| 9 | Report and repository polish | In progress (this document) |
+| 9 | Report and repository polish | In progress |
 
 ---
 
@@ -501,9 +529,12 @@ Statistical notes: AUC values from cross-validation are pooled out-of-fold predi
 - 22 of 994 VOIs are stored as RAS, the rest as LPS. All are reoriented on load.
 - Slice thickness has 10 distinct values (0.45 to 2.5 mm), in-plane pixel size 0.46 to 0.98 mm. Resampling is required.
 - Thickness and malignancy are associated (29%, 33%, 40%; p = 0.0053), but the association disappears within nodule-size groups. Scanner-only AUC 0.566.
-- Diameter-only AUC 0.918, within-size-group AUC 0.73 to 0.78. The image model must be compared against this baseline.
+- Earlier patient-grouped CV: diameter-only AUC 0.918; raw-diameter AUCs within size groups were 0.73–0.78. The current locked-split trainval OOF diameter AUC is 0.913; these results use different evaluation setups. Compare image models against the diameter and Radiomics baselines, not against chance alone.
 - VOI depth (`mm_z`) correlates 0.91 with diameter and alone gives AUC 0.881; in-plane width gives 0.62. Zero-padded fixed-size volumes would leak nodule size, so the patch design avoids them.
 - VOI depth follows the annotation bounding box in z (Spearman 0.94); VOI width does not (0.33).
 - 116 of 344 malignant labels are exact 2-2 rater ties (34%). The majority-vote rule would make 228 malignant, the mean-rating rule would change 90 nodules.
 - Split locked: test 166 nodules (91 patients), 5 folds of about 165 nodules, balanced by label (34-35% malignant) and thickness mix. Seed 42, saved in `data/processed/splits.csv`.
 - Preprocessing v1 implemented: orientation to RAS, centring on the mask centroid, 32 mm window at 0.5 mm per pixel (64 x 64), one central slice interpolated in mm, HU clipped to [-1000, 400] and scaled to [0, 1], air padding recorded as `pad_fraction`. 8 unit tests pass on synthetic data; real-data QA pending.
+- Radiomics features: 994 nodules were extracted under original-spacing and 1 mm isotropic protocols, with 107 features per nodule and protocol and no extraction failures or non-finite values.
+- Initial baseline: six pre-specified comparisons used five-fold trainval OOF predictions and one held-out test evaluation. Test results were not used for tuning or selection; confidence intervals overlap.
+- Feature-ranking screen: nine features appeared in the top 10 in all five trainval folds under both protocols. This descriptive screen did not select or evaluate a feature subset.
