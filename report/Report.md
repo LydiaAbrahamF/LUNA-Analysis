@@ -440,7 +440,7 @@ The test confidence intervals overlap. These initial results do not establish a 
 | 7 | Multiple nodules per patient | Split by patient (never by nodule), with an assertion that no patient appears in two splits |
 | 8 | 34.6% malignant | Report ROC-AUC and average precision; any class weighting or resampling must be decided using training data only |
 | 9 | Coordinate convention verified | Reuse `(-x, -y, z)` with each file's affine for any patch extraction from full CTs |
-| 10 | 116 malignant labels (34%) are exact 2-2 rater ties; labels depend on the rule for about 9-12% of nodules | Keep the dataset rule as primary, add sensitivity analyses and a clear-vs-ambiguous breakdown |
+| 10 | 116 malignant labels (34%) are exact 2-2 rater ties; labels depend on the rule for about 9-12% of nodules | Keep the dataset rule as primary. Label-count comparisons across rules are complete (Section 3.11); model-performance analyses using alternative labels and clear/ambiguous subgroups remain future work and must use trainval data only. |
 | 11 | Patient-level split locked (test: 166 nodules from 91 patients; five trainval folds) | Use the shared split. The pre-specified baseline test comparison has been run once; keep the test set out of future tuning |
 | 12 | Most consistently top-ranked Radiomics features are shape- or size-related | Treat the trainval-only ranking as descriptive. Do not call it a selected feature set or evidence of added value beyond diameter |
 
