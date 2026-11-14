@@ -1,0 +1,3 @@
+model,n,brier,calibration_intercept,calibration_slope
+primary: logreg_l2 on diameter_texture,828,0.1328215090979726,-0.005791547050207922,1.0078072919366219
+secondary: ensemble_avg on radiomics,828,0.1259843894868219,-0.004211981011860102,1.1136650607676437

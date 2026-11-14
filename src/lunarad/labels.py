@@ -38,7 +38,7 @@ def rating_mean(ratings):
 
 
 def is_malignant(ratings, threshold=LABEL_THRESHOLD):
-    """Primary label: mean rating >= threshold."""
+    """Primary label: 1 if the mean rating >= threshold, else 0."""
     ratings = _clean(ratings)
     return int(sum(ratings) >= threshold * len(ratings))
 

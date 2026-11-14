@@ -57,3 +57,14 @@ def test_known_answer_on_the_real_dataset():
     if len(nodules) == 994:
         assert int(nodules["malignant"].sum()) == 550
         assert int(nodules["is_tie"].sum()) == 146
+
+@pytest.mark.skipif(os.environ.get("LUNA_DATA") is not None or not cfg.LABEL_AUDIT_CSV.exists(),
+                    reason="needs the real label_audit.csv")
+def test_known_answer_on_the_real_dataset():
+    audit = add_label_columns(pd.read_csv(cfg.LABEL_AUDIT_CSV).drop(columns=["malignant"]))
+    nodules = pd.read_csv(cfg.NODULES_CSV)
+    assert list(nodules["voi_name"]) == list(audit["voi_name"])
+    assert (nodules["malignant"].to_numpy() == audit["malignant"].to_numpy()).all()
+    if len(audit) == 994 and cfg.LABEL_THRESHOLD == 3.0:
+        assert int(audit["malignant"].sum()) == 550
+        assert int(audit["is_tie"].sum()) == 146

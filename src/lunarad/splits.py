@@ -55,6 +55,21 @@ def build_split(nodules, seed=SEED, n_outer=N_OUTER, n_inner=N_INNER):
     return result
 
 
+def refold(trainval, seed, n_inner=N_INNER):
+    """New patient-grouped, stratified fold assignment for the trainval rows only.
+
+    Used by the repeated-CV robustness check. The sealed test chunk is never touched:
+    callers pass trainval rows only. Returns an int array aligned with trainval.
+    """
+    trainval = trainval.reset_index(drop=True)
+    strata = trainval["malignant"].astype(str) + "_" + trainval["thickness"].astype(str)
+    fold = np.full(len(trainval), -1, dtype=int)
+    cv = StratifiedGroupKFold(n_splits=n_inner, shuffle=True, random_state=seed)
+    for k, (_, val_idx) in enumerate(cv.split(trainval, strata, trainval["patient_id"])):
+        fold[val_idx] = k
+    return fold
+
+
 def validate_split(nodules, splits, n_inner=N_INNER):
     """Raise ValueError if the split breaks any rule. Call it before every use."""
     if nodules["voi_name"].duplicated().any() or splits["voi_name"].duplicated().any():

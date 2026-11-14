@@ -2,3 +2,9 @@
 /myvenv
 /.venv-radiomics
 /config
+__pycache__/
+*.pyc
+.pytest_cache/
+results/tables/test_predictions.csv
+notebooks/data/
+results/tables/oof_predictions.csv and results/tables/final_test_predictions.csv.

@@ -49,3 +49,19 @@ def test_summary_and_hash(nodules, tmp_path):
     path = tmp_path / "splits.csv"
     splits.to_csv(path, index=False)
     assert len(file_hash(path)) == 64
+
+
+def test_refold_keeps_patients_together_and_is_seeded():
+    import numpy as np
+    import pandas as pd
+    from lunarad.splits import refold
+    rng = np.random.default_rng(0)
+    n = 300
+    tv = pd.DataFrame({"patient_id": [f"P{i // 2}" for i in range(n)],
+                       "malignant": rng.integers(0, 2, n),
+                       "thickness": rng.choice(["thin", "thick"], n)})
+    a, b = refold(tv, 1), refold(tv, 1)
+    assert (a == b).all()                                  # same seed, same folds
+    assert not (a == refold(tv, 2)).all()                  # different seed, different folds
+    assert set(a) == set(range(5))
+    assert (tv.assign(f=a).groupby("patient_id")["f"].nunique() == 1).all()

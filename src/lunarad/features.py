@@ -10,7 +10,9 @@ import SimpleITK as sitk
 from radiomics import featureextractor
 
 from .config import BIN_WIDTH, FEATURE_PREFIX, N_FEATURES, PROTOCOLS
+import logging
 
+logging.getLogger("radiomics").setLevel(logging.ERROR)
 
 def make_extractor(protocol):
     """One extractor per protocol. CT is already in HU, so intensities are not normalised."""

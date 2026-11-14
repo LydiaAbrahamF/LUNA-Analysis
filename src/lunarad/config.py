@@ -21,7 +21,8 @@ METADATA_XLSX = DATA / "MetadatabyAnnotation.xlsx"
 # Pipeline outputs. Patient-level files stay in data/ and are never committed.
 PROCESSED = DATA / "processed"
 INVENTORY_CSV = PROCESSED / "image_inventory.csv"
-NODULES_CSV = PROCESSED / "nodules.csv"
+NODULES_CSV = PROCESSED / "nodules.csv"            # modelling table: ONE label column, no ratings
+LABEL_AUDIT_CSV = PROCESSED / "label_audit.csv"    # ratings and sensitivity labels, analysis only
 SPLITS_CSV = PROCESSED / "splits.csv"
 FEATURES_CSV = PROCESSED / "features.csv"
 FAILURES_CSV = PROCESSED / "extraction_failures.csv"
@@ -48,6 +49,22 @@ N_FEATURES = 107
 
 # Models and evaluation.
 LOGREG_C = 1.0
+# Decisions taken from cross-validation only, before the sealed test set is touched
+# (see docs/decisions.md). (input set, model name) pairs.
+FINAL_PROTOCOL = "original_spacing"
+PRIMARY_MODEL = ("diameter_texture", "logreg_l2")
+SECONDARY_MODEL = ("radiomics", "ensemble_avg")         # sensitivity analysis, reported alongside
+# Decision threshold per model: the "recall >= 0.95" cutoff from stage 9 (cross-validation only),
+# frozen before the test run. Decision of 2026-11-14, see docs/decisions.md.
+FINAL_THRESHOLDS = {"primary": 0.264, "secondary": 0.266}
+REFERENCE_MODEL = ("diameter", "logreg")                 # context only, never a candidate
+RECALL_TARGETS = [0.90, 0.95, 0.98]                      # sensitivity the threshold must reach in CV
+COST_RATIOS = [2, 5, 10, 20]                             # a missed malignancy costs k false alarms
+CALIBRATION_BINS = 10
+ENSEMBLE_MEMBERS = ["logreg_l2", "random_forest", "hist_gb"]   # equal-weight probability average
+N_TUNING_FOLDS = 3                 # inner patient-grouped folds used to pick hyperparameters
 SCANNER_COLUMNS = ["sx", "sz"]     # in-plane voxel size and slice thickness
 BOOTSTRAP_REPLICATES = 2000
+N_REPEATS = 10                     # repeated CV: how many different fold assignments
+REPEAT_SEEDS = [SEED + i for i in range(N_REPEATS)]   # seed 42 is the locked split itself
 TOP_K = 10                         # features kept per fold in the ranking-stability screen
