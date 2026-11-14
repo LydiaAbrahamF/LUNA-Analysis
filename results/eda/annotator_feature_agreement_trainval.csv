@@ -1,0 +1,17 @@
+feature,malignant,n_nodules,fraction_unanimous,median_majority_agreement,median_number_of_categories,label
+Calcification,0,542,0.8284132841328413,1.0,1.0,benign
+Calcification,1,286,0.916083916083916,1.0,1.0,malignant
+InternalStructure,0,542,0.988929889298893,1.0,1.0,benign
+InternalStructure,1,286,0.9895104895104895,1.0,1.0,malignant
+Lobulation,0,542,0.28413284132841327,0.75,2.0,benign
+Lobulation,1,286,0.055944055944055944,0.5,3.0,malignant
+Margin,0,542,0.17158671586715868,0.6666666666666666,2.0,benign
+Margin,1,286,0.06993006993006994,0.5,2.0,malignant
+Sphericity,0,542,0.08487084870848709,0.6666666666666666,2.0,benign
+Sphericity,1,286,0.06643356643356643,0.5,2.0,malignant
+Spiculation,0,542,0.4261992619926199,0.75,2.0,benign
+Spiculation,1,286,0.13986013986013987,0.5,2.0,malignant
+Subtlety,0,542,0.08487084870848709,0.5,2.0,benign
+Subtlety,1,286,0.3531468531468531,0.75,2.0,malignant
+Texture,0,542,0.551660516605166,1.0,1.0,benign
+Texture,1,286,0.4755244755244755,0.75,2.0,malignant

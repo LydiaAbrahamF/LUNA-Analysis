@@ -1,0 +1,3 @@
+label,n_nodules,median_nodule_median_hu,q25_nodule_median_hu,q75_nodule_median_hu,median_nodule_q10_hu,median_nodule_q90_hu,median_fraction_hu_gt_0,median_fraction_hu_gt_400
+benign,542,-361.0,-501.0,-194.125,-669.5999999999999,-20.299999999999955,0.07592226613965744,0.0
+malignant,286,-199.5,-340.625,-39.0,-639.5,55.450000000000045,0.25475590683381855,0.0
