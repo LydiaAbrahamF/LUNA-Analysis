@@ -1,0 +1,4 @@
+nodule_id,pair_status,original_size_xyz,original_spacing_xyz_mm,original_voxels,original_volume_mm3,manual_grid_voxels,manual_grid_volume_mm3,manual_volume_change_percent,pyradiomics_roi_grid_voxels,pyradiomics_roi_grid_volume_mm3,pyradiomics_volume_change_percent,pyradiomics_minus_manual_voxels,pyradiomics_minus_manual_volume_mm3,pyradiomics_roi_grid_size_xyz,pyradiomics_grid_spacing_xyz_mm
+LIDC-IDRI-0292_R_1.nii.gz,PASS,44x44x13,0.703125x0.703125x0.625,446,137.809753,124,124.000000,-10.020882,126,126.000000,-8.569606,2,2.000000,19x19x9,1x1x1
+LIDC-IDRI-0470_R_2.nii.gz,PASS,63x53x22,0.703125x0.703125x1.25,10427,6443.687439,6456,6456.000000,0.191079,6516,6516.000000,1.122223,60,60.000000,45x38x28,1x1x1
+LIDC-IDRI-0144_R_2.nii.gz,PASS,43x44x5,0.742188x0.742188x2.5,376,517.792413,503,503.000000,-2.856823,524,524.000000,1.198856,21,21.000000,24x23x13,1x1x1
