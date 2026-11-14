@@ -29,9 +29,14 @@ FAILURES_CSV = PROCESSED / "extraction_failures.csv"
 TABLES = RESULTS / "tables"
 FIGURES = RESULTS / "figures"
 
-# Label: malignant if the MEAN rating is >= this. Ties at exactly 3.0 count as
-# malignant (decision of 2026-11-10, see docs/decisions.md).
-LABEL_THRESHOLD = 3.0
+# Label rule. Default = the LUNA16 / LIDC dataset authors' rule: a nodule is malignant if AT LEAST
+# TWO radiologists rated it above 3 (a 4 or a 5).
+# Other rules exist for sensitivity analyses only. Choose with the environment variable
+# LUNA_LABEL_RULE: dataset | mean_ge3 | mean_gt3 | majority. If you change the rule, also point
+# LUNA_DATA and LUNA_RESULTS at separate folders so the two analyses never mix.
+LABEL_RULE = os.environ.get("LUNA_LABEL_RULE", "dataset")
+LABEL_THRESHOLD = 3.0              # used by the mean-based rules only
+N_HIGH_REQUIRED = 2                # dataset rule: raters needed above 3
 
 # Split: one of N_OUTER outer folds is the sealed test set; the rest form N_INNER CV folds.
 SEED = 42
@@ -50,13 +55,14 @@ N_FEATURES = 107
 # Models and evaluation.
 LOGREG_C = 1.0
 # Decisions taken from cross-validation only, before the sealed test set is touched
-# (see docs/decisions.md). (input set, model name) pairs.
+# (input set, model name) pairs.
 FINAL_PROTOCOL = "original_spacing"
-PRIMARY_MODEL = ("diameter_texture", "logreg_l2")
+PRIMARY_MODEL = ("radiomics", "logreg_l2")
 SECONDARY_MODEL = ("radiomics", "ensemble_avg")         # sensitivity analysis, reported alongside
 # Decision threshold per model: the "recall >= 0.95" cutoff from stage 9 (cross-validation only),
-# frozen before the test run. Decision of 2026-11-14, see docs/decisions.md.
-FINAL_THRESHOLDS = {"primary": 0.264, "secondary": 0.266}
+# frozen before the test run (dataset label rule, stage 9 of 2026-11-14). If the label rule or the
+# models change, set both to None, rerun stage 9, copy its cutoffs here and commit BEFORE the test run.
+FINAL_THRESHOLDS = {"primary": 0.154, "secondary": 0.129}
 REFERENCE_MODEL = ("diameter", "logreg")                 # context only, never a candidate
 RECALL_TARGETS = [0.90, 0.95, 0.98]                      # sensitivity the threshold must reach in CV
 COST_RATIOS = [2, 5, 10, 20]                             # a missed malignancy costs k false alarms

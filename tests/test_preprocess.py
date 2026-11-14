@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.preprocess import (
+from lunarad.preprocess import (
     PreprocessConfig,
     build_dataset,
     hu_to_unit,

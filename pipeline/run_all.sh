@@ -16,5 +16,7 @@ python pipeline/06_repeated_cv.py
 python pipeline/07_compare.py
 python pipeline/08_model_comparison.py
 python pipeline/09_threshold_calibration.py
+python pipeline/09b_subgroups_decision_curve.py
+python pipeline/09c_figures.py
 # Stage 10 is deliberately not run here: it uses the sealed test set once.
 echo "Pipeline finished. Tables are in results/tables/"

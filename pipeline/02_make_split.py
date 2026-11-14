@@ -3,7 +3,7 @@
 Reads   data/processed/nodules.csv
 Writes  data/processed/splits.csv  (refuses to overwrite unless --force)
 
-After running, record the printed hash (docs/decisions.md). Regenerating the split
+After running, note the printed hash (it identifies the split; the README lists it). Regenerating the split
 changes the sealed test set, so it must be a deliberate, documented act.
 """
 import argparse
@@ -35,7 +35,7 @@ def main():
     print(summarize_split(nodules, splits))
     splits.to_csv(cfg.SPLITS_CSV, index=False)
     print(f"wrote {cfg.SPLITS_CSV}")
-    print(f"sha256 {file_hash(cfg.SPLITS_CSV)}   <- record this in docs/decisions.md")
+    print(f"sha256 {file_hash(cfg.SPLITS_CSV)}   <- this hash identifies the split")
 
 
 if __name__ == "__main__":

@@ -188,3 +188,19 @@ def calibration_summary(y, probability, bins=10):
     return table, {"brier": float(brier_score_loss(y, p)),
                    "calibration_intercept": float(fit.intercept_[0]),
                    "calibration_slope": float(fit.coef_[0][0])}
+
+
+def net_benefit(y, probability, threshold):
+    """Decision-curve net benefit of flagging nodules with probability >= threshold.
+
+    net benefit = TP/n - FP/n * t/(1-t). The weight t/(1-t) is the exchange rate implied by the
+    threshold: one false alarm costs t/(1-t) of the benefit of one detected malignancy.
+    Also returns the two default strategies: flag everyone ("all") and flag no one (0).
+    """
+    y = np.asarray(y, dtype=int)
+    flagged = np.asarray(probability, dtype=float) >= threshold
+    n, weight = y.size, threshold / (1.0 - threshold)
+    prevalence = y.mean()
+    return {"net_benefit_model": float(((flagged & (y == 1)).sum() - weight * (flagged & (y == 0)).sum()) / n),
+            "net_benefit_all": float(prevalence - weight * (1.0 - prevalence)),
+            "net_benefit_none": 0.0}

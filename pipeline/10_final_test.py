@@ -3,7 +3,7 @@
 Prerequisites (all from cross-validation, before this stage):
   * model, input set and protocol chosen  -> config.PRIMARY_MODEL / SECONDARY_MODEL / FINAL_PROTOCOL
   * decision threshold fixed (stage 9)    -> config.FINAL_THRESHOLDS
-  * all of the above written, dated, in docs/decisions.md
+  * all of the above committed to git (src/lunarad/config.py) before this script is run
 
 This stage fits the primary and the secondary model on ALL trainval nodules and scores the sealed
 test nodules once. A diameter-only logistic regression is scored as a reference (not a candidate).
@@ -46,7 +46,7 @@ def check_threshold_against_stage9(label, threshold):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--confirm", action="store_true",
-                        help="I have recorded the model, input and threshold in docs/decisions.md")
+                        help="the model, input and threshold in config.py are final and committed")
     parser.add_argument("--force-final", action="store_true",
                         help="allow a second pass (the test set is then no longer sealed)")
     parser.add_argument("--expect-sha256", help="refuse to run if splits.csv has another hash")
@@ -59,11 +59,15 @@ def main():
     parser.add_argument("--bootstrap", type=int, default=cfg.BOOTSTRAP_REPLICATES)
     args = parser.parse_args()
 
+    if args.primary_threshold is None or args.secondary_threshold is None:
+        sys.exit("No decision threshold is frozen. Run stage 9 under the current label rule "
+                 f"({cfg.LABEL_RULE}), copy its two recall-95% cutoffs into FINAL_THRESHOLDS in "
+                 "src/lunarad/config.py, and commit that file.")
     if not args.confirm:
         sys.exit("Refusing to touch the test set without --confirm.\n"
                  f"This will score primary {tuple(args.primary)} at threshold "
                  f"{args.primary_threshold} and secondary {tuple(args.secondary)} at "
-                 f"{args.secondary_threshold}, once. Record them in docs/decisions.md first.")
+                 f"{args.secondary_threshold}, once. Commit src/lunarad/config.py first.")
     if SEAL.exists() and not args.force_final:
         sys.exit(f"{SEAL} already exists: the test set has been used. "
                  "Pass --force-final only if you accept it is no longer sealed.")

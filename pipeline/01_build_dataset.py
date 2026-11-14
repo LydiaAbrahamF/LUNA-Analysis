@@ -18,11 +18,12 @@ import pandas as pd
 from lunarad import config as cfg
 from lunarad.labels import add_label_columns
 
-KNOWN_N, KNOWN_MALIGNANT, KNOWN_TIES = 994, 550, 146   # full dataset, mean >= 3 rule
+KNOWN_N = 994
+KNOWN_MALIGNANT = {"dataset": 344, "mean_ge3": 550, "mean_gt3": 404, "majority": 228}   # full dataset
 
 # Everything about the raters. Kept out of nodules.csv and written to label_audit.csv.
 RATING_COLUMNS = ["ratings", "n_annotations", "n_raters", "n_high", "rating_mean", "is_tie",
-                  "label_mean_gt3", "label_dataset_rule", "label_majority"]
+                  "label_dataset_rule", "label_mean_ge3", "label_mean_gt3", "label_majority"]
 
 
 def describe_file(path, kind):
@@ -135,11 +136,13 @@ def main():
     assert final["nx"].notna().all(), "a nodule has no matching row in the image inventory"
 
     n, malignant, ties = len(final), int(final["malignant"].sum()), int(final["is_tie"].sum())
+    print(f"label rule: {cfg.LABEL_RULE}")
     print(f"nodules with image: {n} | malignant {malignant} | benign {n - malignant} | "
-          f"ties at the threshold {ties}")
-    if n == KNOWN_N and cfg.LABEL_THRESHOLD == 3.0:       # known-answer check, full dataset only
-        assert (malignant, ties) == (KNOWN_MALIGNANT, KNOWN_TIES), \
-            f"expected {KNOWN_MALIGNANT} malignant and {KNOWN_TIES} ties on the full dataset"
+          f"on the rule's boundary {ties}")
+    if n == KNOWN_N:                                      # known-answer check, full dataset only
+        expected = KNOWN_MALIGNANT[cfg.LABEL_RULE]
+        assert malignant == expected, \
+            f"expected {expected} malignant under rule {cfg.LABEL_RULE!r} on the full dataset"
 
     # The modelling table keeps exactly one label column. Ratings, their mean and the
     # sensitivity labels go to a separate audit file: a column like rating_mean in the

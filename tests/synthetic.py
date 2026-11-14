@@ -24,7 +24,7 @@ def make_dataset(root, n_patients=60, seed=0):
             coords = rng.uniform(-100, 100, 3)
             for _ in range(int(rng.choice([3, 4]))):
                 annotation += 1
-                rating = int(np.clip(round(1 + diameter / 9 + rng.normal(0, 1.0)), 1, 5))
+                rating = int(np.clip(round(1 + diameter / 5 + rng.normal(0, 1.0)), 1, 5))
                 rows.append({
                     "patient_id": patient_id, "nodule_id": nodule_id,
                     "coordX": coords[0], "coordY": coords[1], "coordZ": coords[2],

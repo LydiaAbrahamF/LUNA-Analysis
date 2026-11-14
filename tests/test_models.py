@@ -184,3 +184,13 @@ def test_fit_predict_named_ensemble_is_the_mean_of_its_members(table):
     ens = fit_predict_named("ensemble_avg", train, test, cols, members=["logreg_l2", "hist_gb"])
     assert np.allclose(ens, (a + b) / 2)
     assert fit_predict_named("logreg", train, test, cols).shape == (50,)
+
+
+def test_net_benefit_known_values():
+    from lunarad.evaluation import net_benefit
+    y = [1, 1, 0, 0]
+    perfect = net_benefit(y, [0.9, 0.8, 0.1, 0.2], 0.5)
+    assert perfect["net_benefit_model"] == 0.5 and perfect["net_benefit_all"] == 0.0   # weight 1 at t = 0.5
+    one_false_alarm = net_benefit(y, [0.9, 0.8, 0.3, 0.1], 0.2)                        # weight 0.25
+    assert abs(one_false_alarm["net_benefit_model"] - (2 - 0.25) / 4) < 1e-12
+    assert abs(one_false_alarm["net_benefit_all"] - (0.5 - 0.25 * 0.5)) < 1e-12

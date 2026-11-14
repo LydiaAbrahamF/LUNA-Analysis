@@ -41,7 +41,7 @@ def test_full_pipeline(workspace):
     assert {"malignant", "thickness", "diameter_mm"} <= set(nodules.columns)
     assert "split" not in nodules.columns and "fold" not in nodules.columns
     for leaky in ["ratings", "rating_mean", "n_high", "n_raters", "is_tie", "label_mean_gt3",
-                  "label_dataset_rule", "label_majority", "n_annotations"]:
+                  "label_mean_ge3", "label_dataset_rule", "label_majority", "n_annotations"]:
         assert leaky not in nodules.columns                     # one label column only
     audit = pd.read_csv(processed / "label_audit.csv")
     assert {"ratings", "rating_mean", "is_tie"} <= set(audit.columns)
@@ -96,6 +96,16 @@ def test_full_pipeline(workspace):
     recall_rows = thr[thr["rule"].str.startswith("recall")]
     assert (recall_rows["sensitivity"].to_numpy() >= [0.90, 0.95, 0.98]).all()
     assert (base / "results" / "figures" / "calibration.png").exists()
+    run(env, "09b_subgroups_decision_curve.py", "--primary", "radiomics", "logreg_l2",
+        "--no-secondary", "--bootstrap", "30")
+    sub = pd.read_csv(tables / "subgroup_auc.csv")
+    assert sub["thickness"].iloc[0] == "all" and sub["n_nodules"].iloc[1:].sum() == sub["n_nodules"].iloc[0]
+    dca = pd.read_csv(tables / "decision_curve.csv")
+    assert {"net_benefit_model", "net_benefit_all", "net_benefit_none"} <= set(dca.columns)
+    assert (base / "results" / "figures" / "decision_curve.png").exists()
+    run(env, "09c_figures.py")
+    assert (base / "results" / "figures" / "model_auc_forest.png").exists()
+    assert (base / "results" / "figures" / "paired_difference_forest.png").exists()
     assert not (tables / "final_test_metrics.csv").exists()       # still sealed
 
     old_final = run(env, "04_run_models.py", "--final", expect_ok=False)
@@ -106,8 +116,10 @@ def test_full_pipeline(workspace):
     final_args = ["--primary", "radiomics", "logreg_l2", "--secondary", "radiomics", "hist_gb",
                   "--primary-threshold", str(round(stage9, 4)), "--secondary-threshold", "0.5",
                   "--bootstrap", "30"]
-    wrong = run(env, "10_final_test.py", *final_args[:3], "--primary-threshold", "0.9", "--confirm",
-                expect_ok=False)
+    defaults = run(env, "10_final_test.py", "--confirm", expect_ok=False)   # config values do not fit this data
+    assert defaults.returncode != 0 and not (tables / "final_test_metrics.csv").exists()
+    wrong = run(env, "10_final_test.py", *final_args[:3], "--primary-threshold", "0.9",
+                "--secondary-threshold", "0.5", "--confirm", expect_ok=False)
     assert wrong.returncode != 0 and "mismatch" in wrong.stderr   # threshold must match stage 9
     assert not (tables / "final_test_metrics.csv").exists()
     refused = run(env, "10_final_test.py", *final_args, expect_ok=False)

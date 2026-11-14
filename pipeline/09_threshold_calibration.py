@@ -7,7 +7,7 @@ Two ways to choose the decision threshold t (flag a nodule as suspicious when p 
   recall target  t = largest value whose cross-validated sensitivity is >= the target
   cost ratio k   t = 1 / (1 + k): a missed malignancy is k times worse than a false alarm
                  (only meaningful if the probabilities are calibrated)
-The label rule (mean rating >= 3) is untouched; this is a separate, later decision.
+The label rule (config.LABEL_RULE) is untouched; this is a separate, later decision.
 
 Writes results/tables/calibration_table.csv, calibration_summary.csv, threshold_analysis.csv
        results/figures/calibration.png
