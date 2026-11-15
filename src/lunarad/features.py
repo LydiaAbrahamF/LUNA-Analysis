@@ -3,16 +3,18 @@ features are a function of the image and mask only, so they are computed once fo
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pandas as pd
 import SimpleITK as sitk
 from radiomics import featureextractor
 
-from .config import BIN_WIDTH, FEATURE_PREFIX, N_FEATURES, PROTOCOLS
-import logging
+from .config import BIN_WIDTH, FEATURE_PREFIX, INTERPOLATOR, N_FEATURES, PROTOCOLS
 
+# PyRadiomics logs one INFO line per nodule ("GLCM is symmetrical ..."); it buries the progress output.
 logging.getLogger("radiomics").setLevel(logging.ERROR)
+
 
 def make_extractor(protocol):
     """One extractor per protocol. CT is already in HU, so intensities are not normalised."""
@@ -20,7 +22,7 @@ def make_extractor(protocol):
         binWidth=BIN_WIDTH,
         normalize=False,
         resampledPixelSpacing=PROTOCOLS[protocol],
-        interpolator=sitk.sitkBSpline,
+        interpolator=getattr(sitk, INTERPOLATOR),
         force2D=False,
         label=1,
     )
@@ -43,7 +45,7 @@ def extract_one(image_path, mask_path, extractor):
     return {"spacing_x": spacing[0], "spacing_y": spacing[1], "spacing_z": spacing[2], **features}
 
 
-def extract_all(nodules, image_dir, mask_dir, protocols=None, verbose=True):
+def extract_all(nodules, image_dir, mask_dir, protocols=None, verbose=True, trace=False):
     """Extract every protocol for every nodule. Returns (features, failures) tables.
 
     A failure on one nodule is logged and skipped so that a long run is not lost.
@@ -53,6 +55,8 @@ def extract_all(nodules, image_dir, mask_dir, protocols=None, verbose=True):
     records, failures = [], []
     for i, row in enumerate(nodules.itertuples(index=False), start=1):
         for protocol in protocols:
+            if trace:      # printed BEFORE the call, so a hard crash still shows where it happened
+                print(f"  [{i}] {row.voi_name} {protocol}", flush=True)
             try:
                 values = extract_one(Path(image_dir) / row.voi_name,
                                      Path(mask_dir) / row.voi_name, extractors[protocol])

@@ -8,3 +8,12 @@ __pycache__/
 results/tables/test_predictions.csv
 notebooks/data/
 results/tables/oof_predictions.csv and results/tables/final_test_predictions.csv.
+results_docker/
+results_check/
+results_mean_label/
+processed_docker/
+processed_second/
+figures_update/
+*.zip
+results/tables/final_test_predictions.csv
+results/tables/oof_predictions.csv

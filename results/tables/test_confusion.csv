@@ -1,0 +1,3 @@
+role,threshold,tp,fn,fp,tn
+primary,0.154,48,4,39,75
+secondary,0.129,47,5,35,79

@@ -1,0 +1,14 @@
+# Pinned versions tested together on Python 3.11 (see Dockerfile).
+# numpy must stay below 2: PyRadiomics 3.0.1 was written for numpy 1.x.
+# PyRadiomics is installed separately in the Dockerfile because it must be
+# compiled against this numpy: pip install --no-build-isolation pyradiomics==3.0.1
+numpy==1.26.4
+pandas==3.0.6
+scipy==1.17.1
+scikit-learn==1.9.1
+nibabel==5.4.2
+matplotlib==3.11.2
+openpyxl==3.1.5
+SimpleITK==2.5.6
+PyWavelets==1.9.0
+pytest==9.2.0

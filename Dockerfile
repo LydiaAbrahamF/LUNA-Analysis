@@ -16,10 +16,11 @@ RUN apt-get update \
 WORKDIR /app
 COPY requirements-docker.txt .
 
+# numpy 1.26.4 is deliberate: PyRadiomics 3.0.1 predates numpy 2, and the results were produced with 1.26.4.
 # Order matters. PyRadiomics must be compiled against the same numpy that runs at
 # runtime, so numpy and its build helpers go in first, then PyRadiomics without
 # build isolation, then everything else (numpy is pinned identically).
-RUN pip install --upgrade pip setuptools wheel versioneer numpy==2.4.6 \
+RUN pip install --upgrade pip "setuptools<81" wheel versioneer numpy==1.26.4 \
     && pip install --no-build-isolation pyradiomics==3.0.1 \
     && pip install -r requirements-docker.txt
 

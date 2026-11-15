@@ -19,7 +19,8 @@ VOI_MASK = DATA / "VOIs" / "VOIs" / "nodule_mask"
 METADATA_XLSX = DATA / "MetadatabyAnnotation.xlsx"
 
 # Pipeline outputs. Patient-level files stay in data/ and are never committed.
-PROCESSED = DATA / "processed"
+PROCESSED = Path(os.environ.get("LUNA_PROCESSED", DATA / "processed"))   # derived tables; relocatable so that
+# a second run (for example in Docker) can read the same raw data without overwriting these files
 INVENTORY_CSV = PROCESSED / "image_inventory.csv"
 NODULES_CSV = PROCESSED / "nodules.csv"            # modelling table: ONE label column, no ratings
 LABEL_AUDIT_CSV = PROCESSED / "label_audit.csv"    # ratings and sensitivity labels, analysis only
@@ -45,6 +46,11 @@ N_INNER = 5
 
 # Radiomics extraction.
 BIN_WIDTH = 25
+# Interpolator for the resampled protocol. LINEAR, not B-spline: 37 of the 994 nodule crops have only
+# 2 slices, and a cubic B-spline needs more samples than that along an axis. On those crops B-spline
+# resampling returned different (sometimes absurd) intensities on every run, which also made the
+# compiled PyRadiomics code fail or crash. Linear interpolation is defined for 2 slices and repeatable.
+INTERPOLATOR = "sitkLinear"
 PROTOCOLS = {                      # name -> resampled voxel spacing (None = keep original)
     "original_spacing": None,
     "isotropic_1mm": (1.0, 1.0, 1.0),

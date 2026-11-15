@@ -21,6 +21,9 @@ def workspace(tmp_path_factory):
     data = make_dataset(base / "data")
     env = dict(os.environ, LUNA_DATA=str(data), LUNA_RESULTS=str(base / "results"),
                PYTHONPATH=str(ROOT / "src"))
+    # The test must be self-contained: never inherit settings that point at real folders.
+    for name in ("LUNA_PROCESSED", "LUNA_LABEL_RULE"):
+        env.pop(name, None)
     return base, env
 
 
@@ -53,6 +56,12 @@ def test_full_pipeline(workspace):
     assert (processed / "splits.csv").read_bytes() == locked
 
     run(env, "03_extract_features.py")
+    first = pd.read_csv(base / "data" / "processed" / "features.csv")
+    crash_env = dict(env, LUNARAD_TEST_CRASH_ONCE=str(base / "crash_marker"))
+    again = run(crash_env, "03_extract_features.py", "--fresh", "--chunk-size", "7")   # one worker dies once
+    assert "crashed" in again.stdout and "worker crashes that were retried: 1" in again.stdout
+    second = pd.read_csv(base / "data" / "processed" / "features.csv")
+    pd.testing.assert_frame_equal(first, second)          # retried and re-extracted values are identical
     features = pd.read_csv(processed / "features.csv")
     assert len(features) == 2 * len(nodules)
     assert len([c for c in features.columns if c.startswith("original_")]) == 107

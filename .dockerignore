@@ -1,0 +1,14 @@
+.git
+data
+results
+report
+archive
+notebooks
+docs
+myvenv
+.venv*
+config
+**/__pycache__
+**/*.pyc
+.pytest_cache
+*.egg-info
