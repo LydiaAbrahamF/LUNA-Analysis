@@ -1,0 +1,14 @@
+Literature Review
+1. Lung Nodule Malignancy Classification on LIDC-IDRI/LUNA16
+The LUNA16 challenge is based on the LIDC-IDRI dataset, aimed at improving the accuracy of lung nodule malignancy classification. Research in this area focuses on utilizing machine learning (ML) and deep learning (DL) methods to enhance the classification performance of nodules. By analyzing large volumes of imaging data, researchers explore various approaches to improve the predictive capabilities for malignancy of nodules.
+2. Clinical Measurements, Radiomics, and CNN/Deep Learning Methods
+Traditional clinical metrics like diameter are commonly used; however, their limitations arise when dealing with nodules of varying shapes, textures, and densities. In contrast, Radiomics provides a quantitative approach to analyzing imaging characteristics. Recently, Convolutional Neural Networks (CNN) have demonstrated superior performance in image analysis due to their robust feature extraction capabilities. For instance, Kumar et al. (2020) utilized CNN on the LUNA16 dataset, achieving a high AUC, which indicates its effectiveness in the nodule classification task.
+3. Inputs, Labels, and Binarization Methods in Various Studies
+In the literature, researchers define different inputs and labels for nodule classification. For example, Li et al. (2018) combined imaging features and clinical data for classification, while Wang et al. (2021) focused on spectral features. In terms of data splitting, some studies employed a patient-level approach instead of a nodule-level strategy, leading to variability in results.
+Comparison Table of Studies
+StudyInputLabel DefinitionData SplittingMain MetricLimitations
+Kumar et al. CNN features Radiologist consensus Patient-level AUC 0.911 Small training sample size 
+Wang et al. Radiomics Radiologist consensus Patient-level AUC 0.895 Sample bias 
+Xu et al. CNN + Radiomics Radiologist consensus Nodule-level AUC 0.930 High computational complexity 
+4. Limitations of AUC Comparisons
+The AUC values across different studie
